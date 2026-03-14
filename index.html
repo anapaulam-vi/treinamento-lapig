@@ -2,140 +2,218 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Treinamento Dinâmico - LAPIG</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Treinamento de Interpretação - LAPIG</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body class="bg-slate-100">
 
-    <header class="bg-white p-4 shadow-sm flex justify-between items-center">
-        <h1 class="font-bold text-lg text-slate-700">Gestão de Treinamento v1.0</h1>
-        <div id="coords-display" class="hidden font-mono bg-blue-600 text-white px-3 py-1 rounded"></div>
-        <div id="score" class="text-sm font-bold text-emerald-600">Acertos: 0 | Total: 0</div>
+    <style>
+        .map-crosshair {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); z-index: 1000;
+            pointer-events: none; color: #00ff00; font-size: 30px; font-weight: bold;
+        }
+        #map { cursor: default !important; background: #000; }
+        .input-field { 
+            width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; 
+            outline: none; transition: all 0.2s; font-size: 14px;
+        }
+        .correct { background-color: #dcfce7 !important; border-color: #22c55e !important; color: #166534; }
+        .incorrect { background-color: #fee2e2 !important; border-color: #ef4444 !important; color: #991b1b; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <header class="bg-white border-b p-4 shadow-sm flex justify-between items-center sticky top-0 z-[1001]">
+        <h1 class="font-bold text-lg">Sistema de Treinamento Geospacial</h1>
+        <div id="coords-display" class="hidden font-mono bg-slate-800 text-white px-4 py-2 rounded-md text-sm"></div>
+        <div id="score" class="text-sm font-bold bg-blue-50 text-blue-700 px-4 py-2 rounded-md border border-blue-100">
+            Acertos: 0 | Total: 0
+        </div>
     </header>
 
-    <main class="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-4 gap-4 p-4">
+    <main class="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-5 gap-6 p-6">
         
-        <div class="lg:col-span-3 space-y-4">
-            <div class="relative h-80 rounded-lg overflow-hidden border-2 border-white shadow">
+        <div class="lg:col-span-4 space-y-4">
+            
+            <div class="relative h-[400px] rounded-xl overflow-hidden shadow-md border-2 border-white">
                 <div id="map" class="h-full w-full"></div>
-                <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-green-400 text-3xl pointer-events-none">+</div>
+                <div class="map-crosshair">+</div>
+                <div class="absolute bottom-3 right-3 bg-black/60 text-white text-[10px] px-2 py-1 rounded">SENTINEL-2 / LAPIG</div>
             </div>
             
-            <div class="bg-white p-4 rounded-lg shadow h-64">
-                <canvas id="ndviChart"></canvas>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Sentinel 2 Timeseries</h3>
+                <div class="h-[280px]">
+                    <canvas id="ndviChart"></canvas>
+                </div>
             </div>
         </div>
 
-        <div id="quiz-panel" class="bg-white p-5 rounded-lg shadow space-y-4">
-            <h2 class="text-xs font-bold uppercase text-slate-400">Sua Interpretação</h2>
+        <div id="quiz-panel" class="bg-white p-6 rounded-xl shadow-lg border border-gray-200 space-y-4 h-fit">
+            <h2 class="text-xs font-black text-gray-400 uppercase tracking-tighter border-b pb-2">Chave de Interpretação</h2>
             
-            <select id="q-bioma" class="w-full p-2 border rounded text-sm">
-                <option value="">Selecione o Bioma...</option>
-                <option value="Amazonia">Amazônia</option>
-                <option value="Cerrado">Cerrado</option>
-            </select>
+            <div class="space-y-3">
+                <div>
+                    <label class="text-[11px] font-bold text-gray-600">Cor:</label>
+                    <input type="text" id="ans-cor" class="input-field" placeholder="Ex: Verde">
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-600">Tonalidade:</label>
+                    <input type="text" id="ans-tonalidade" class="input-field" placeholder="Ex: Escura">
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-600">Textura:</label>
+                    <input type="text" id="ans-textura" class="input-field" placeholder="Ex: Rugosa">
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-600">Forma:</label>
+                    <input type="text" id="ans-forma" class="input-field" placeholder="Ex: Irregular">
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-600">Contexto:</label>
+                    <input type="text" id="ans-contexto" class="input-field" placeholder="Ex: Natural">
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-600">NDVI (Valor aproximado):</label>
+                    <input type="number" step="0.1" id="ans-ndvi" class="input-field" placeholder="0.0">
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-600">Bioma:</label>
+                    <input type="text" id="ans-bioma" class="input-field" placeholder="Ex: Amazônia">
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-600">Classe:</label>
+                    <input type="text" id="ans-classe" class="input-field" placeholder="Ex: Formação Florestal">
+                </div>
+            </div>
 
-            <select id="q-classe" class="w-full p-2 border rounded text-sm">
-                <option value="">Selecione a Classe...</option>
-                <option value="FF">Formação Florestal</option>
-                <option value="PA">Pastagem</option>
-            </select>
+            <button onclick="verificarResposta()" id="btn-envio" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-all shadow-md">
+                Enviar Resposta
+            </button>
+            
+            <button onclick="proximaQuestao()" id="btn-next" class="hidden w-full bg-emerald-600 text-white font-bold py-3 rounded-lg hover:bg-emerald-700 transition-all shadow-md">
+                Próxima Área ➔
+            </button>
 
-            <button onclick="verificar()" id="btn-action" class="w-full bg-blue-600 text-white py-3 rounded font-bold hover:bg-blue-700">ENVIAR</button>
-            <button onclick="proxima()" id="btn-next" class="hidden w-full bg-emerald-600 text-white py-3 rounded font-bold">PRÓXIMA QUESTÃO</button>
-
-            <div id="feedback" class="hidden p-3 rounded text-xs border-2"></div>
+            <div id="feedback-box" class="hidden p-4 rounded-lg text-xs leading-relaxed border-2"></div>
         </div>
     </main>
 
     <script>
         let dadosCSV = [];
         let questaoAtual = null;
-        let acertos = 0;
-        let total = 0;
-        let chart;
+        let acertosTotais = 0;
+        let questoesRespondidas = 0;
+        let chartInstance = null;
 
-        // 1. Carregar CSV automaticamente
+        // 1. Configuração do Mapa (Fixo)
+        const map = L.map('map', {
+            dragging: false, zoomControl: false, scrollWheelZoom: false,
+            doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false
+        }).setView([0, 0], 15);
+
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+
+        // 2. Carregar CSV
         Papa.parse("dados.csv", {
             download: true,
             header: true,
+            skipEmptyLines: true,
             complete: function(results) {
                 dadosCSV = results.data;
-                proxima(); // Inicia a primeira questão
+                if(dadosCSV.length > 0) proximaQuestao();
             }
         });
 
-        // 2. Configuração do Mapa
-        const map = L.map('map', { dragging: false, zoomControl: false, scrollWheelZoom: false }).setView([0,0], 15);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
-
-        function proxima() {
-            if(dadosCSV.length === 0) return;
-            
-            // Sorteia uma linha do CSV
+        function proximaQuestao() {
             questaoAtual = dadosCSV[Math.floor(Math.random() * dadosCSV.length)];
             
-            // Atualiza Mapa
-            map.setView([questaoAtual.lat, questaoAtual.lon], 15);
+            // Atualizar Mapa
+            map.setView([parseFloat(questaoAtual.lat), parseFloat(questaoAtual.lon)], 15);
             
-            // Reseta Interface
-            document.getElementById('feedback').classList.add('hidden');
+            // Limpar Interface
+            document.querySelectorAll('.input-field').forEach(el => {
+                el.value = "";
+                el.classList.remove('correct', 'incorrect');
+                el.disabled = false;
+            });
+            document.getElementById('feedback-box').classList.add('hidden');
             document.getElementById('coords-display').classList.add('hidden');
-            document.getElementById('btn-action').classList.remove('hidden');
+            document.getElementById('btn-envio').classList.remove('hidden');
             document.getElementById('btn-next').classList.add('hidden');
-            document.getElementById('q-bioma').value = "";
-            document.getElementById('q-classe').value = "";
-            
-            gerarGrafico();
+
+            // Renderizar Gráfico
+            const ndviData = questaoAtual.ndvi_val.split(';').map(Number);
+            const chuvaData = questaoAtual.chuva_val.split(';').map(Number);
+            renderizarGrafico(ndviData, chuvaData);
         }
 
-        function verificar() {
-            const biomaUser = document.getElementById('q-bioma').value;
-            const feedback = document.getElementById('feedback');
-            total++;
+        function verificarResposta() {
+            questoesRespondidas++;
+            let acertosNesta = 0;
+            const campos = ['cor', 'tonalidade', 'textura', 'forma', 'contexto', 'ndvi', 'bioma', 'classe'];
+            
+            campos.forEach(campo => {
+                const input = document.getElementById(`ans-${campo}`);
+                const valorUsuario = input.value.trim().toLowerCase();
+                const valorCerto = questaoAtual[campo] ? questaoAtual[campo].toLowerCase() : "";
 
-            // Revela Coordenadas
+                if (valorUsuario === valorCerto) {
+                    input.classList.add('correct');
+                    acertosNesta++;
+                } else {
+                    input.classList.add('incorrect');
+                }
+                input.disabled = true;
+            });
+
+            if (acertosNesta === campos.length) acertosTotais++;
+
+            // Mostrar Coordenadas e Feedback
             const coordsDiv = document.getElementById('coords-display');
-            coordsDiv.innerHTML = `Lat: ${questaoAtual.lat} | Lon: ${questaoAtual.lon}`;
+            coordsDiv.innerHTML = `📍 Lat: ${questaoAtual.lat}, Lon: ${questaoAtual.lon}`;
             coordsDiv.classList.remove('hidden');
 
+            const feedback = document.getElementById('feedback-box');
             feedback.classList.remove('hidden');
-            if(biomaUser === questaoAtual.bioma_certo) {
-                acertos++;
-                feedback.className = "p-3 rounded text-xs border-2 bg-green-50 border-green-200 text-green-700";
-                feedback.innerHTML = "<b>✅ Correto!</b> " + questaoAtual.explicacao;
-            } else {
-                feedback.className = "p-3 rounded text-xs border-2 bg-red-50 border-red-200 text-red-700";
-                feedback.innerHTML = "<b>❌ Errado.</b> " + questaoAtual.explicacao;
-            }
+            feedback.className = "p-4 rounded-lg text-xs leading-relaxed border-2 bg-gray-50 border-gray-200 text-gray-700";
+            feedback.innerHTML = `<b>Nota da Área:</b> ${questaoAtual.explicacao}`;
 
-            document.getElementById('score').innerHTML = `Acertos: ${acertos} | Total: ${total}`;
-            document.getElementById('btn-action').classList.add('hidden');
+            document.getElementById('score').innerHTML = `Acertos: ${acertosTotais} | Total: ${questoesRespondidas}`;
+            document.getElementById('btn-envio').classList.add('hidden');
             document.getElementById('btn-next').classList.remove('hidden');
         }
 
-        function gerarGrafico() {
+        function renderizarGrafico(ndvi, chuva) {
             const ctx = document.getElementById('ndviChart').getContext('2d');
-            if(chart) chart.destroy();
-            
-            chart = new Chart(ctx, {
+            if (chartInstance) chartInstance.destroy();
+
+            chartInstance = new Chart(ctx, {
                 data: {
                     labels: ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'],
-                    datasets: [{
-                        label: 'NDVI', type: 'line',
-                        data: Array.from({length: 12}, () => Math.random() * (0.9 - 0.6) + 0.6),
-                        borderColor: '#16a34a'
-                    }, {
-                        label: 'Chuva', type: 'bar',
-                        data: [200, 220, 250, 150, 80, 30, 10, 20, 90, 160, 210, 240],
-                        backgroundColor: '#3b82f6'
-                    }]
+                    datasets: [
+                        {
+                            label: 'NDVI (Média)', type: 'line', data: ndvi,
+                            borderColor: '#16a34a', backgroundColor: '#16a34a', tension: 0.3, yAxisID: 'y'
+                        },
+                        {
+                            label: 'Precipitação (Acumulado Mensal)', type: 'bar', data: chuva,
+                            backgroundColor: 'rgba(59, 130, 246, 0.6)', yAxisID: 'y1'
+                        }
+                    ]
                 },
-                options: { responsive: true, maintainAspectRatio: false }
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        y: { type: 'linear', position: 'left', min: 0, max: 1, title: { display: true, text: 'NDVI' } },
+                        y1: { type: 'linear', position: 'right', min: 0, title: { display: true, text: 'Chuva (mm)' }, grid: { drawOnChartArea: false } }
+                    }
+                }
             });
         }
     </script>
