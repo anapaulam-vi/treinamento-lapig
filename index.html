@@ -2,89 +2,75 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Treinamento Geospacial LAPIG</title>
+    <title>Treinamento de Sensoriamento Remoto</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        .map-crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; color: #00ff00; font-size: 30px; pointer-events: none; }
-        .correct { background-color: #dcfce7 !important; border: 2px solid #22c55e !important; }
-        .incorrect { background-color: #fee2e2 !important; border: 2px solid #ef4444 !important; }
-    </style>
 </head>
-<body class="bg-slate-50">
+<body class="bg-gray-100">
 
-    <header class="bg-white p-4 shadow flex justify-between items-center sticky top-0 z-50">
-        <h1 class="font-bold text-slate-700">App de Treinamento Interpretativo</h1>
-        <div id="coords-display" class="hidden font-mono bg-slate-800 text-white px-3 py-1 rounded text-sm"></div>
-    </header>
-
-    <main class="max-w-[1400px] mx-auto p-4 grid lg:grid-cols-4 gap-6">
-        <div class="lg:col-span-3 space-y-4">
-            <div class="relative h-[400px] rounded-lg overflow-hidden border-4 border-white shadow-xl">
-                <div id="map" class="h-full w-full"></div>
-                <div class="map-crosshair">+</div>
+    <div class="max-w-6xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 space-y-4">
+            <div id="map" class="h-[400px] w-full bg-black rounded-lg shadow-lg relative">
+                <div class="absolute top-1/2 left-1/2 text-green-500 text-3xl font-bold z-[1000] -translate-x-1/2 -translate-y-1/2 pointer-events-none">+</div>
             </div>
-            <div class="bg-white p-4 rounded-lg shadow h-[250px]">
-                <canvas id="ndviChart"></canvas>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <canvas id="ndviChart" height="150"></canvas>
             </div>
         </div>
 
-        <div class="bg-white p-6 rounded-lg shadow space-y-4">
-            <h2 class="text-xs font-bold text-slate-400 uppercase">Chave de Respostas</h2>
-            
-            <input id="q-cor" placeholder="Cor" class="w-full p-2 border rounded text-sm">
-            <input id="q-tonalidade" placeholder="Tonalidade" class="w-full p-2 border rounded text-sm">
-            <input id="q-textura" placeholder="Textura" class="w-full p-2 border rounded text-sm">
-            <input id="q-forma" placeholder="Forma" class="w-full p-2 border rounded text-sm">
-            <input id="q-contexto" placeholder="Contexto" class="w-full p-2 border rounded text-sm">
-            <input id="q-ndvi" placeholder="NDVI" class="w-full p-2 border rounded text-sm">
-            <input id="q-bioma" placeholder="Bioma" class="w-full p-2 border rounded text-sm">
-            <input id="q-classe" placeholder="Classe" class="w-full p-2 border rounded text-sm">
-
-            <button onclick="verificar()" id="btn-envio" class="w-full bg-blue-600 text-white py-3 rounded font-bold">ENVIAR</button>
-            <button onclick="proxima()" id="btn-next" class="hidden w-full bg-emerald-600 text-white py-3 rounded font-bold">PRÓXIMA</button>
-
-            <div id="feedback" class="hidden p-3 rounded text-xs border space-y-2"></div>
+        <div id="quiz" class="bg-white p-6 rounded-lg shadow space-y-3">
+            <h2 class="font-bold border-b pb-2">Questionário</h2>
+            <select id="q-cor" class="w-full p-2 border rounded">
+                <option value="">Cor...</option><option value="Verde">Verde</option>
+            </select>
+            <select id="q-bioma" class="w-full p-2 border rounded">
+                <option value="">Bioma...</option><option value="Amazonia">Amazônia</option><option value="Cerrado">Cerrado</option>
+            </select>
+            <button onclick="verificar()" class="w-full bg-blue-600 text-white py-2 rounded">Enviar</button>
+            <div id="feedback" class="hidden p-3 text-sm rounded border"></div>
         </div>
-    </main>
+    </div>
 
     <script>
-        let dadosCSV = [], questao = null;
-        const map = L.map('map', { dragging: false, zoomControl: false }).setView([0,0], 14);
+        // Configuração do Mapa
+        const map = L.map('map', { dragging: false, zoomControl: false }).setView([-4.649, -66.227], 13);
+        // Use a camada do LAPIG ou ArcGIS World Imagery
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-        Papa.parse("dados.csv", { download: true, header: true, complete: (res) => { dadosCSV = res.data; proxima(); }});
+        // Carregar CSV
+        Papa.parse("dados.csv", {
+            download: true, header: true,
+            complete: (results) => { 
+                window.dados = results.data; 
+                carregarQuestao(0); 
+            },
+            error: () => alert("Erro ao carregar o arquivo CSV. Verifique o caminho!")
+        });
 
-        function proxima() {
-            questao = dadosCSV[Math.floor(Math.random() * dadosCSV.length)];
-            map.setView([questao.lat, questao.lon], 14);
-            document.querySelectorAll('input').forEach(i => { i.value = ""; i.className = "w-full p-2 border rounded text-sm"; i.disabled = false; });
-            document.getElementById('feedback').classList.add('hidden');
-            document.getElementById('btn-envio').classList.remove('hidden');
-            document.getElementById('btn-next').classList.add('hidden');
+        function carregarQuestao(index) {
+            const q = window.dados[index];
+            map.setView([q.lat, q.lon], 13);
+            // Aqui você chamaria o endpoint de séries temporais do LAPIG
         }
 
         function verificar() {
-            const campos = ['cor', 'tonalidade', 'textura', 'forma', 'contexto', 'ndvi', 'bioma', 'classe'];
-            campos.forEach(c => {
-                const el = document.getElementById(`q-${c}`);
-                const correto = questao[`${c}_certa`].toLowerCase();
-                el.classList.add(el.value.toLowerCase() === correto ? 'correct' : 'incorrect');
-                el.disabled = true;
-            });
-
-            document.getElementById('coords-display').innerHTML = `Lat: ${questao.lat} | Lon: ${questao.lon}`;
-            document.getElementById('coords-display').classList.remove('hidden');
+            // Lógica de validação com feedback visual
+            const select = document.getElementById('q-bioma');
+            const feedback = document.getElementById('feedback');
+            feedback.classList.remove('hidden');
             
-            const fb = document.getElementById('feedback');
-            fb.classList.remove('hidden');
-            fb.innerHTML = `<b>Bioma:</b> ${questao.explicacao_bioma}<br><b>Classe:</b> ${questao.explicacao_classe}`;
-            
-            document.getElementById('btn-envio').classList.add('hidden');
-            document.getElementById('btn-next').classList.remove('hidden');
+            if(select.value === "Amazonia") {
+                select.classList.add('bg-green-100');
+                feedback.innerHTML = "✅ Correto!";
+                feedback.className = "p-3 text-sm rounded border bg-green-50 text-green-700";
+            } else {
+                select.classList.add('bg-red-100');
+                feedback.innerHTML = "❌ Incorreto.";
+                feedback.className = "p-3 text-sm rounded border bg-red-50 text-red-700";
+            }
         }
     </script>
 </body>
