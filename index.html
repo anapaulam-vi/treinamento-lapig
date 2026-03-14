@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Treinamento Dinâmico - LAPIG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-100">
+
+    <header class="bg-white p-4 shadow-sm flex justify-between items-center">
+        <h1 class="font-bold text-lg text-slate-700">Gestão de Treinamento v1.0</h1>
+        <div id="coords-display" class="hidden font-mono bg-blue-600 text-white px-3 py-1 rounded"></div>
+        <div id="score" class="text-sm font-bold text-emerald-600">Acertos: 0 | Total: 0</div>
+    </header>
+
+    <main class="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-4 gap-4 p-4">
+        
+        <div class="lg:col-span-3 space-y-4">
+            <div class="relative h-80 rounded-lg overflow-hidden border-2 border-white shadow">
+                <div id="map" class="h-full w-full"></div>
+                <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-green-400 text-3xl pointer-events-none">+</div>
+            </div>
+            
+            <div class="bg-white p-4 rounded-lg shadow h-64">
+                <canvas id="ndviChart"></canvas>
+            </div>
+        </div>
+
+        <div id="quiz-panel" class="bg-white p-5 rounded-lg shadow space-y-4">
+            <h2 class="text-xs font-bold uppercase text-slate-400">Sua Interpretação</h2>
+            
+            <select id="q-bioma" class="w-full p-2 border rounded text-sm">
+                <option value="">Selecione o Bioma...</option>
+                <option value="Amazonia">Amazônia</option>
+                <option value="Cerrado">Cerrado</option>
+            </select>
+
+            <select id="q-classe" class="w-full p-2 border rounded text-sm">
+                <option value="">Selecione a Classe...</option>
+                <option value="FF">Formação Florestal</option>
+                <option value="PA">Pastagem</option>
+            </select>
+
+            <button onclick="verificar()" id="btn-action" class="w-full bg-blue-600 text-white py-3 rounded font-bold hover:bg-blue-700">ENVIAR</button>
+            <button onclick="proxima()" id="btn-next" class="hidden w-full bg-emerald-600 text-white py-3 rounded font-bold">PRÓXIMA QUESTÃO</button>
+
+            <div id="feedback" class="hidden p-3 rounded text-xs border-2"></div>
+        </div>
+    </main>
+
+    <script>
+        let dadosCSV = [];
+        let questaoAtual = null;
+        let acertos = 0;
+        let total = 0;
+        let chart;
+
+        // 1. Carregar CSV automaticamente
+        Papa.parse("dados.csv", {
+            download: true,
+            header: true,
+            complete: function(results) {
+                dadosCSV = results.data;
+                proxima(); // Inicia a primeira questão
+            }
+        });
+
+        // 2. Configuração do Mapa
+        const map = L.map('map', { dragging: false, zoomControl: false, scrollWheelZoom: false }).setView([0,0], 15);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+
+        function proxima() {
+            if(dadosCSV.length === 0) return;
+            
+            // Sorteia uma linha do CSV
+            questaoAtual = dadosCSV[Math.floor(Math.random() * dadosCSV.length)];
+            
+            // Atualiza Mapa
+            map.setView([questaoAtual.lat, questaoAtual.lon], 15);
+            
+            // Reseta Interface
+            document.getElementById('feedback').classList.add('hidden');
+            document.getElementById('coords-display').classList.add('hidden');
+            document.getElementById('btn-action').classList.remove('hidden');
+            document.getElementById('btn-next').classList.add('hidden');
+            document.getElementById('q-bioma').value = "";
+            document.getElementById('q-classe').value = "";
+            
+            gerarGrafico();
+        }
+
+        function verificar() {
+            const biomaUser = document.getElementById('q-bioma').value;
+            const feedback = document.getElementById('feedback');
+            total++;
+
+            // Revela Coordenadas
+            const coordsDiv = document.getElementById('coords-display');
+            coordsDiv.innerHTML = `Lat: ${questaoAtual.lat} | Lon: ${questaoAtual.lon}`;
+            coordsDiv.classList.remove('hidden');
+
+            feedback.classList.remove('hidden');
+            if(biomaUser === questaoAtual.bioma_certo) {
+                acertos++;
+                feedback.className = "p-3 rounded text-xs border-2 bg-green-50 border-green-200 text-green-700";
+                feedback.innerHTML = "<b>✅ Correto!</b> " + questaoAtual.explicacao;
+            } else {
+                feedback.className = "p-3 rounded text-xs border-2 bg-red-50 border-red-200 text-red-700";
+                feedback.innerHTML = "<b>❌ Errado.</b> " + questaoAtual.explicacao;
+            }
+
+            document.getElementById('score').innerHTML = `Acertos: ${acertos} | Total: ${total}`;
+            document.getElementById('btn-action').classList.add('hidden');
+            document.getElementById('btn-next').classList.remove('hidden');
+        }
+
+        function gerarGrafico() {
+            const ctx = document.getElementById('ndviChart').getContext('2d');
+            if(chart) chart.destroy();
+            
+            chart = new Chart(ctx, {
+                data: {
+                    labels: ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'],
+                    datasets: [{
+                        label: 'NDVI', type: 'line',
+                        data: Array.from({length: 12}, () => Math.random() * (0.9 - 0.6) + 0.6),
+                        borderColor: '#16a34a'
+                    }, {
+                        label: 'Chuva', type: 'bar',
+                        data: [200, 220, 250, 150, 80, 30, 10, 20, 90, 160, 210, 240],
+                        backgroundColor: '#3b82f6'
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+    </script>
+</body>
+</html>

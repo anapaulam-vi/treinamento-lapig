@@ -1,0 +1,4 @@
+id,lat,lon,cor_certa,tonalidade_certa,textura_certa,forma_certa,contexto_certo,ndvi_certo,bioma_certo,classe_certa,explicacao_bioma, explicacao_classe
+1,-4.649,-66.227,Verde,Escuro,Rugosa e Heterogênea,Irregular,Natural,alto,Amazonia,Formação Florestal,Grande extensão de área de floresta isolada(sem indícios de antropização sugere ser no bioma amazônia),NDVI alto e constante  indica vegetação arbórea. NDVI baixo com alta precipitação indica interferência de nuvens
+
+ 
